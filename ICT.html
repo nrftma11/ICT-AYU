@@ -1,0 +1,1852 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TrigoSurf: Neon Runner</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Orbitron & Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+    <!-- Three.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        game: ['Orbitron', 'sans-serif'],
+                    },
+                    colors: {
+                        neonBlue: '#00f0ff',
+                        neonPurple: '#bc13fe',
+                        neonYellow: '#ffe600',
+                        neonOrange: '#ff6c00',
+                        neonCyan: '#00ffff',
+                        neonGreen: '#39ff14',
+                        neonRed: '#ff073a',
+                        darkBg: '#0b001a',
+                        cardBg: '#16082e',
+                    },
+                    boxShadow: {
+                        neonCyan: '0 0 15px rgba(0, 240, 255, 0.6)',
+                        neonPurple: '0 0 15px rgba(188, 19, 254, 0.6)',
+                        neonGreen: '0 0 20px rgba(57, 255, 20, 0.8)',
+                        neonRed: '0 0 20px rgba(255, 7, 58, 0.8)',
+                        neonYellow: '0 0 15px rgba(255, 230, 0, 0.6)',
+                        neonOrange: '0 0 15px rgba(255, 108, 0, 0.6)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #0b001a;
+            color: #ffffff;
+            overflow-x: hidden;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        /* Custom Neon Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0b001a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #bc13fe;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #00f0ff;
+        }
+
+        /* Ambient Glow & Background Animation */
+        .neon-glow-text {
+            text-shadow: 0 0 10px rgba(0, 240, 255, 0.8), 0 0 20px rgba(0, 240, 255, 0.4);
+        }
+        .neon-glow-purple {
+            text-shadow: 0 0 10px rgba(188, 19, 254, 0.8), 0 0 20px rgba(188, 19, 254, 0.4);
+        }
+        .neon-glow-yellow {
+            text-shadow: 0 0 10px rgba(255, 230, 0, 0.8), 0 0 20px rgba(255, 230, 0, 0.4);
+        }
+
+        @keyframes pulse-slow {
+            0%, 100% { opacity: 0.9; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.02); }
+        }
+        .pulse-card {
+            animation: pulse-slow 3s infinite ease-in-out;
+        }
+
+        /* Screen transitions */
+        .screen {
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+        .screen.active {
+            display: flex;
+            opacity: 1;
+        }
+
+        /* WebGL Canvas Background Styling */
+        #game-canvas {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between overflow-x-hidden relative">
+
+    <!-- Ambient Grid Background in background of menus -->
+    <div class="absolute inset-0 bg-[linear-gradient(to_right,#1f003a_1px,transparent_1px),linear-gradient(to_bottom,#1f003a_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-30 pointer-events-none z-0"></div>
+
+    <!-- ================= HOMESCREEN ================= -->
+    <div id="screen-home" class="screen active min-h-screen w-full flex-col p-6 z-10 overflow-y-auto">
+        <!-- Top Stats Bar -->
+        <div class="w-full max-w-5xl mx-auto flex justify-between items-center pt-2 mb-6">
+            <div class="flex items-center gap-2 bg-cardBg/80 px-4 py-2 rounded-full border border-neonPurple/40 shadow-neonPurple">
+                <i class="fa-solid fa-coins text-neonYellow text-xl animate-bounce"></i>
+                <span id="home-coins" class="font-game text-neonYellow font-bold">0</span>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="toggleAudio()" class="w-10 h-10 rounded-full bg-cardBg/80 border border-neonCyan/40 flex items-center justify-center text-neonCyan shadow-neonCyan hover:bg-neonCyan hover:text-darkBg transition-all">
+                    <i id="audio-icon" class="fa-solid fa-volume-high"></i>
+                </button>
+                <button onclick="showInfoModal()" class="w-10 h-10 rounded-full bg-cardBg/80 border border-neonCyan/40 flex items-center justify-center text-neonCyan shadow-neonCyan hover:bg-neonCyan hover:text-darkBg transition-all">
+                    <i class="fa-solid fa-circle-info"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Layout Split: Left (Game Info & Controls), Right (Mission & Targets) -->
+        <div class="w-full max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-center my-auto">
+            
+            <!-- Left Side: Game Branding & Buttons -->
+            <div class="lg:col-span-5 flex flex-col items-center lg:items-start text-center lg:text-left">
+                <!-- Animated Glowing Trigonometry Icon -->
+                <div class="relative w-36 h-36 mb-6 flex items-center justify-center mx-auto lg:mx-0">
+                    <div class="absolute inset-0 border-4 border-dashed border-neonCyan rounded-full animate-spin [animation-duration:15s] opacity-60"></div>
+                    <div class="absolute inset-3 border border-neonPurple rounded-full animate-spin [animation-duration:8s] [animation-direction:reverse]"></div>
+                    <!-- Neon Triangle Logo inside circular orbits -->
+                    <svg class="w-20 h-20 text-neonYellow drop-shadow-[0_0_12px_#ffe600]" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                        <polygon points="4,20 20,20 20,4" />
+                        <!-- Arc for angle -->
+                        <path d="M 8 20 A 4 4 0 0 0 7.2 16.8" />
+                    </svg>
+                    <div class="absolute text-neonCyan font-game font-black text-xs bottom-8 right-6">θ</div>
+                </div>
+
+                <h1 class="font-game text-4xl md:text-5xl lg:text-6xl font-black tracking-wider leading-none select-none">
+                    <span class="text-neonCyan neon-glow-text">TRIGO</span><span class="text-neonPurple neon-glow-purple">SURF</span>
+                </h1>
+                <p class="text-neonYellow/90 font-game tracking-widest text-[10px] md:text-xs mt-2 uppercase">Neon Trigonometry Runner</p>
+                
+                <div class="w-full h-1 bg-gradient-to-r from-transparent via-neonCyan to-transparent lg:via-transparent lg:to-transparent my-6"></div>
+
+                <!-- Homescreen Buttons -->
+                <div class="w-full flex flex-col gap-4">
+                    <button onclick="playMenuClick(); navigateTo('difficulty')" class="relative group w-full py-4 bg-gradient-to-r from-neonOrange to-neonYellow text-darkBg font-game font-extrabold text-xl rounded-2xl shadow-neonYellow hover:scale-105 active:scale-95 transition-all overflow-hidden flex items-center justify-center gap-3">
+                        <span class="absolute inset-0 w-full h-full bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></span>
+                        <i class="fa-solid fa-gamepad text-xl animate-bounce"></i> MAIN SEKARANG
+                    </button>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <button onclick="playMenuClick(); navigateTo('materi')" class="py-3 bg-cardBg/90 hover:bg-neonPurple/20 border-2 border-neonPurple/50 text-white font-game font-bold text-sm md:text-base rounded-xl shadow-neonPurple hover:shadow-[0_0_20px_rgba(188,19,254,0.8)] active:scale-95 transition-all flex flex-col items-center justify-center gap-1">
+                            <i class="fa-solid fa-book-open text-neonPurple text-xl mb-1"></i> MATERI
+                        </button>
+                        <button onclick="playMenuClick(); openEvaluasiMenu()" class="py-3 bg-cardBg/90 hover:bg-neonCyan/20 border-2 border-neonCyan/50 text-white font-game font-bold text-sm md:text-base rounded-xl shadow-neonCyan hover:shadow-[0_0_20px_rgba(0,240,255,0.8)] active:scale-95 transition-all flex flex-col items-center justify-center gap-1">
+                            <i class="fa-solid fa-chart-line text-neonCyan text-xl mb-1"></i> EVALUASI
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Side: Interactive Learning Objectives (Misi Pembelajaran) -->
+            <div class="lg:col-span-7 flex flex-col gap-4">
+                <div class="bg-cardBg/90 border-2 border-neonCyan/40 rounded-3xl p-6 shadow-neonCyan relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-24 h-24 bg-neonCyan/10 rounded-full blur-2xl"></div>
+                    
+                    <!-- Title Header -->
+                    <div class="flex items-center gap-3 border-b border-white/10 pb-4 mb-4">
+                        <div class="w-10 h-10 bg-neonCyan/20 border border-neonCyan rounded-xl flex items-center justify-center text-neonCyan">
+                            <i class="fa-solid fa-bullseye text-lg animate-pulse"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-game text-lg font-bold text-white tracking-wide">MISI PEMBELAJARAN</h3>
+                            <p class="text-[10px] text-neonCyan tracking-wider font-semibold">TENTUKAN TARGET & CAPAI SKOR MAKSIMAL!</p>
+                        </div>
+                    </div>
+
+                    <!-- Capaian Pembelajaran Box -->
+                    <div class="bg-darkBg/60 border border-neonPurple/30 rounded-2xl p-4 mb-4 hover:border-neonPurple transition-colors">
+                        <div class="flex items-center gap-2 mb-1.5">
+                            <span class="text-[9px] font-game bg-neonPurple/20 border border-neonPurple/50 text-neonPurple px-2.5 py-0.5 rounded-full uppercase">Capaian Pembelajaran (CP)</span>
+                        </div>
+                        <p class="text-sm text-white/90 font-medium leading-relaxed">
+                            Mengaplikasikan perbandingan trigonometri (<span class="text-neonCyan">sinus</span>, <span class="text-neonPurple">cosinus</span>, <span class="text-neonOrange">tangen</span>) dari sudut lancip pada situasi nyata.
+                        </p>
+                    </div>
+
+                    <!-- Tujuan Pembelajaran Checklist -->
+                    <div class="flex flex-col gap-3">
+                        <span class="text-[10px] font-game text-white/40 tracking-wider">TUJUAN BELAJAR (KETUK UNTUK DETAIL):</span>
+                        
+                        <!-- Objective item 1 -->
+                        <div onclick="showObjectiveDetail(1)" class="cursor-pointer group flex gap-3 bg-darkBg/30 hover:bg-neonCyan/5 border border-white/5 hover:border-neonCyan/40 p-3 rounded-xl transition-all duration-200">
+                            <div class="flex-shrink-0 w-6 h-6 rounded-md border border-neonCyan/40 flex items-center justify-center text-neonCyan group-hover:bg-neonCyan group-hover:text-darkBg transition-all">
+                                <i class="fa-solid fa-check text-xs"></i>
+                            </div>
+                            <div>
+                                <h4 class="text-xs font-game font-bold text-neonCyan group-hover:text-white transition-colors">TUJUAN 1 • RASIO TRIGONOMETRI</h4>
+                                <p class="text-xs text-white/70 mt-0.5">Peserta didik menentukan dan menggunakan perbandingan trigonometri secara tepat dalam permainan.</p>
+                            </div>
+                        </div>
+
+                        <!-- Objective item 2 -->
+                        <div onclick="showObjectiveDetail(2)" class="cursor-pointer group flex gap-3 bg-darkBg/30 hover:bg-neonOrange/5 border border-white/5 hover:border-neonOrange/40 p-3 rounded-xl transition-all duration-200">
+                            <div class="flex-shrink-0 w-6 h-6 rounded-md border border-neonOrange/40 flex items-center justify-center text-neonOrange group-hover:bg-neonOrange group-hover:text-darkBg transition-all">
+                                <i class="fa-solid fa-check text-xs"></i>
+                            </div>
+                            <div>
+                                <h4 class="text-xs font-game font-bold text-neonOrange group-hover:text-white transition-colors">TUJUAN 2 • TINGGI OBJEK KONTEKSTUAL</h4>
+                                <p class="text-xs text-white/70 mt-0.5">Peserta didik menyelesaikan perhitungan matematika praktis untuk mengukur ketinggian suatu objek.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Progress Bar Simulating Game Status -->
+                    <div class="mt-6 pt-4 border-t border-white/10 flex flex-col gap-1.5">
+                        <div class="flex justify-between text-[10px] font-game">
+                            <span class="text-white/50">PROGRES MATERI UTAMA</span>
+                            <span class="text-neonYellow font-semibold">100% READY</span>
+                        </div>
+                        <div class="w-full h-2 bg-darkBg rounded-full overflow-hidden p-0.5 border border-white/10">
+                            <div class="w-full h-full bg-gradient-to-r from-neonPurple to-neonCyan rounded-full animate-pulse"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="w-full text-center text-[10px] text-white/30 font-semibold mt-8 mb-2">
+            TrigoSurf v1.2.0 &copy; 2026 • Dirancang untuk Pembelajaran Matematika Seru
+        </div>
+    </div>
+
+    <!-- ================= DIFFICULTY SELECTION SCREEN ================= -->
+    <div id="screen-difficulty" class="screen min-h-screen w-full flex-col p-6 z-10 overflow-y-auto">
+        <!-- Header -->
+        <div class="w-full max-w-4xl mx-auto flex justify-between items-center mb-10 pt-2">
+            <button onclick="playMenuClick(); navigateTo('home')" class="px-4 py-2 rounded-lg bg-cardBg/80 border border-neonPurple/40 text-neonPurple font-game font-bold text-sm flex items-center gap-2 hover:bg-neonPurple hover:text-white transition-all">
+                <i class="fa-solid fa-arrow-left"></i> KEMBALI
+            </button>
+            <h2 class="font-game text-2xl md:text-3xl font-black text-neonCyan neon-glow-text">PILIH KESULITAN</h2>
+            <div class="w-10"></div>
+        </div>
+
+        <!-- Cards Container -->
+        <div class="w-full max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 my-auto">
+            <!-- MUDAH Card -->
+            <button onclick="selectDifficulty('MUDAH')" class="group text-left bg-cardBg/95 border-2 border-neonGreen/40 hover:border-neonGreen hover:shadow-neonGreen rounded-2xl p-6 transition-all duration-300 transform hover:scale-105 active:scale-95 flex flex-col justify-between h-80 relative overflow-hidden">
+                <div class="absolute -right-6 -top-6 w-24 h-24 bg-neonGreen/10 rounded-full blur-xl group-hover:bg-neonGreen/20 transition-all"></div>
+                <div>
+                    <div class="w-12 h-12 rounded-xl bg-neonGreen/20 border border-neonGreen/50 flex items-center justify-center text-neonGreen mb-6 shadow-[0_0_10px_rgba(57,255,20,0.4)]">
+                        <i class="fa-solid fa-feather text-2xl"></i>
+                    </div>
+                    <h3 class="font-game text-2xl font-black text-white mb-2 group-hover:text-neonGreen transition-colors">MUDAH</h3>
+                    <p class="text-white/70 text-sm leading-relaxed">Pengenalan rasio sisi segitiga & sudut dasar. Sangat cocok untuk pemula.</p>
+                </div>
+                <div class="border-t border-white/10 pt-4 w-full flex justify-between items-center mt-4">
+                    <span class="text-xs text-neonGreen font-game font-bold"><i class="fa-solid fa-stopwatch"></i> 30 DETIK / SOAL</span>
+                    <i class="fa-solid fa-circle-play text-neonGreen text-xl group-hover:translate-x-1 transition-transform"></i>
+                </div>
+            </button>
+
+            <!-- SEDANG Card -->
+            <button onclick="selectDifficulty('SEDANG')" class="group text-left bg-cardBg/95 border-2 border-neonCyan/40 hover:border-neonCyan hover:shadow-neonCyan rounded-2xl p-6 transition-all duration-300 transform hover:scale-105 active:scale-95 flex flex-col justify-between h-80 relative overflow-hidden">
+                <div class="absolute -right-6 -top-6 w-24 h-24 bg-neonCyan/10 rounded-full blur-xl group-hover:bg-neonCyan/20 transition-all"></div>
+                <div>
+                    <div class="w-12 h-12 rounded-xl bg-neonCyan/20 border border-neonCyan/50 flex items-center justify-center text-neonCyan mb-6 shadow-[0_0_10px_rgba(0,240,255,0.4)]">
+                        <i class="fa-solid fa-shield-halved text-2xl"></i>
+                    </div>
+                    <h3 class="font-game text-2xl font-black text-white mb-2 group-hover:text-neonCyan transition-colors">SEDANG</h3>
+                    <p class="text-white/70 text-sm leading-relaxed">Operasi sudut istimewa, identitas dasar, dan aturan tanda kuadran kartesius.</p>
+                </div>
+                <div class="border-t border-white/10 pt-4 w-full flex justify-between items-center mt-4">
+                    <span class="text-xs text-neonCyan font-game font-bold"><i class="fa-solid fa-stopwatch"></i> 30 DETIK / SOAL</span>
+                    <i class="fa-solid fa-circle-play text-neonCyan text-xl group-hover:translate-x-1 transition-transform"></i>
+                </div>
+            </button>
+
+            <!-- SULIT Card -->
+            <button onclick="selectDifficulty('SULIT')" class="group text-left bg-cardBg/95 border-2 border-neonOrange/40 hover:border-neonOrange hover:shadow-neonOrange rounded-2xl p-6 transition-all duration-300 transform hover:scale-105 active:scale-95 flex flex-col justify-between h-80 relative overflow-hidden">
+                <div class="absolute -right-6 -top-6 w-24 h-24 bg-neonOrange/10 rounded-full blur-xl group-hover:bg-neonOrange/20 transition-all"></div>
+                <div>
+                    <div class="w-12 h-12 rounded-xl bg-neonOrange/20 border border-neonOrange/50 flex items-center justify-center text-neonOrange mb-6 shadow-[0_0_10px_rgba(255,108,0,0.4)]">
+                        <i class="fa-solid fa-bolt text-2xl"></i>
+                    </div>
+                    <h3 class="font-game text-2xl font-black text-white mb-2 group-hover:text-neonOrange transition-colors">SULIT</h3>
+                    <p class="text-white/70 text-sm leading-relaxed">Uji pemahaman HOTS, pembuktian identitas, serta penyelesaian soal cerita kontekstual.</p>
+                </div>
+                <div class="border-t border-white/10 pt-4 w-full flex justify-between items-center mt-4">
+                    <span class="text-xs text-neonOrange font-game font-bold"><i class="fa-solid fa-stopwatch"></i> 50 DETIK / SOAL</span>
+                    <i class="fa-solid fa-circle-play text-neonOrange text-xl group-hover:translate-x-1 transition-transform"></i>
+                </div>
+            </button>
+        </div>
+    </div>
+
+    <!-- ================= MATERI SECTION ================= -->
+    <div id="screen-materi" class="screen min-h-screen w-full flex-col p-6 z-10 overflow-y-auto">
+        <!-- Back Navigation & Title -->
+        <div class="w-full max-w-5xl mx-auto flex justify-between items-center mb-6">
+            <button onclick="playMenuClick(); navigateTo('home')" class="px-4 py-2 rounded-lg bg-cardBg/80 border border-neonPurple/40 text-neonPurple font-game font-bold text-sm flex items-center gap-2 hover:bg-neonPurple hover:text-white transition-all">
+                <i class="fa-solid fa-arrow-left"></i> KEMBALI
+            </button>
+            <h2 class="font-game text-2xl md:text-3xl font-black text-neonCyan neon-glow-text">MENU MATERI</h2>
+            <div class="w-10"></div> <!-- Spacer for balancing layout -->
+        </div>
+
+        <!-- List of Material Cards -->
+        <div class="w-full max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            <!-- CARD 1: Perbandingan Trigonometri -->
+            <div onclick="openMateriDetail(0)" class="cursor-pointer group bg-cardBg/95 border border-neonPurple/30 rounded-2xl p-5 hover:border-neonCyan hover:shadow-neonCyan transition-all flex flex-col justify-between h-72 relative overflow-hidden">
+                <div class="absolute -right-8 -top-8 w-24 h-24 bg-neonPurple/10 rounded-full blur-xl group-hover:bg-neonCyan/20 transition-all"></div>
+                <div>
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="text-xs font-game bg-neonPurple/20 border border-neonPurple/50 text-neonPurple px-3 py-1 rounded-full uppercase">Dasar</span>
+                        <i class="fa-solid fa-triangle-exclamation text-neonCyan text-2xl"></i>
+                    </div>
+                    <h3 class="font-game text-xl font-bold text-white mb-2 group-hover:text-neonCyan transition-colors">Perbandingan Trigonometri</h3>
+                    <p class="text-white/70 text-sm leading-relaxed">Pahami definisi dasar perbandingan segitiga siku-siku ($\sin, \cos, \tan$) melalui sisi depan, samping, dan miring.</p>
+                </div>
+                <div class="flex justify-between items-center pt-4 border-t border-white/10 mt-2">
+                    <span class="text-xs text-neonYellow font-game font-semibold"><i class="fa-solid fa-star"></i> Level Mudah</span>
+                    <span class="text-neonCyan text-sm font-bold flex items-center gap-1 group-hover:translate-x-1 transition-transform">Pelajari <i class="fa-solid fa-chevron-right text-xs"></i></span>
+                </div>
+            </div>
+
+            <!-- CARD 2: Sudut Istimewa -->
+            <div onclick="openMateriDetail(1)" class="cursor-pointer group bg-cardBg/95 border border-neonPurple/30 rounded-2xl p-5 hover:border-neonCyan hover:shadow-neonCyan transition-all flex flex-col justify-between h-72 relative overflow-hidden">
+                <div class="absolute -right-8 -top-8 w-24 h-24 bg-neonPurple/10 rounded-full blur-xl group-hover:bg-neonCyan/20 transition-all"></div>
+                <div>
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="text-xs font-game bg-neonPurple/20 border border-neonPurple/50 text-neonPurple px-3 py-1 rounded-full uppercase">Sudut</span>
+                        <i class="fa-solid fa-compass text-neonOrange text-2xl"></i>
+                    </div>
+                    <h3 class="font-game text-xl font-bold text-white mb-2 group-hover:text-neonCyan transition-colors">Sudut-Sudut Istimewa</h3>
+                    <p class="text-white/70 text-sm leading-relaxed">Kumpulan nilai trigonometri eksak untuk sudut istimewa $0^\circ, 30^\circ, 45^\circ, 60^\circ, 90^\circ$ di kuadran pertama.</p>
+                </div>
+                <div class="flex justify-between items-center pt-4 border-t border-white/10 mt-2">
+                    <span class="text-xs text-neonYellow font-game font-semibold"><i class="fa-solid fa-star"></i> Level Mudah</span>
+                    <span class="text-neonCyan text-sm font-bold flex items-center gap-1 group-hover:translate-x-1 transition-transform">Pelajari <i class="fa-solid fa-chevron-right text-xs"></i></span>
+                </div>
+            </div>
+
+            <!-- CARD 3: Identitas Dasar -->
+            <div onclick="openMateriDetail(2)" class="cursor-pointer group bg-cardBg/95 border border-neonPurple/30 rounded-2xl p-5 hover:border-neonCyan hover:shadow-neonCyan transition-all flex flex-col justify-between h-72 relative overflow-hidden">
+                <div class="absolute -right-8 -top-8 w-24 h-24 bg-neonPurple/10 rounded-full blur-xl group-hover:bg-neonCyan/20 transition-all"></div>
+                <div>
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="text-xs font-game bg-neonPurple/20 border border-neonPurple/50 text-neonPurple px-3 py-1 rounded-full uppercase">Aljabar</span>
+                        <i class="fa-solid fa-equals text-neonYellow text-2xl"></i>
+                    </div>
+                    <h3 class="font-game text-xl font-bold text-white mb-2 group-hover:text-neonCyan transition-colors">Identitas Trigonometri</h3>
+                    <p class="text-white/70 text-sm leading-relaxed">Mempelajari rumus fundamental penyederhanaan bentuk trigonometri, seperti $\sin^2 x + \cos^2 x = 1$.</p>
+                </div>
+                <div class="flex justify-between items-center pt-4 border-t border-white/10 mt-2">
+                    <span class="text-xs text-neonOrange font-game font-semibold"><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i> Level Sedang</span>
+                    <span class="text-neonCyan text-sm font-bold flex items-center gap-1 group-hover:translate-x-1 transition-transform">Pelajari <i class="fa-solid fa-chevron-right text-xs"></i></span>
+                </div>
+            </div>
+
+            <!-- CARD 4: Kuadran Trigonometri -->
+            <div onclick="openMateriDetail(3)" class="cursor-pointer group bg-cardBg/95 border border-neonPurple/30 rounded-2xl p-5 hover:border-neonCyan hover:shadow-neonCyan transition-all flex flex-col justify-between h-72 relative overflow-hidden">
+                <div class="absolute -right-8 -top-8 w-24 h-24 bg-neonPurple/10 rounded-full blur-xl group-hover:bg-neonCyan/20 transition-all"></div>
+                <div>
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="text-xs font-game bg-neonPurple/20 border border-neonPurple/50 text-neonPurple px-3 py-1 rounded-full uppercase">Analitis</span>
+                        <i class="fa-solid fa-circle-notch text-neonCyan text-2xl"></i>
+                    </div>
+                    <h3 class="font-game text-xl font-bold text-white mb-2 group-hover:text-neonCyan transition-colors">Kuadran & Pembagian Sudut</h3>
+                    <p class="text-white/70 text-sm leading-relaxed">Sistem pembagian wilayah sudut (Kuadran I - IV) dan aturan tanda positif/negatif fungsi trigonometri.</p>
+                </div>
+                <div class="flex justify-between items-center pt-4 border-t border-white/10 mt-2">
+                    <span class="text-xs text-neonOrange font-game font-semibold"><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i> Level Sedang</span>
+                    <span class="text-neonCyan text-sm font-bold flex items-center gap-1 group-hover:translate-x-1 transition-transform">Pelajari <i class="fa-solid fa-chevron-right text-xs"></i></span>
+                </div>
+            </div>
+
+            <!-- CARD 5: Soal Kontekstual -->
+            <div onclick="openMateriDetail(4)" class="cursor-pointer group bg-cardBg/95 border border-neonPurple/30 rounded-2xl p-5 hover:border-neonCyan hover:shadow-neonCyan transition-all flex flex-col justify-between h-72 relative overflow-hidden">
+                <div class="absolute -right-8 -top-8 w-24 h-24 bg-neonPurple/10 rounded-full blur-xl group-hover:bg-neonCyan/20 transition-all"></div>
+                <div>
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="text-xs font-game bg-neonPurple/20 border border-neonPurple/50 text-neonPurple px-3 py-1 rounded-full uppercase">Penerapan</span>
+                        <i class="fa-solid fa-building text-neonGreen text-2xl"></i>
+                    </div>
+                    <h3 class="font-game text-xl font-bold text-white mb-2 group-hover:text-neonCyan transition-colors">Aplikasi Kontekstual</h3>
+                    <p class="text-white/70 text-sm leading-relaxed">Aplikasi nyata mengukur tinggi benda, jarak kapal, menggunakan sudut elevasi dan depresi di kehidupan nyata.</p>
+                </div>
+                <div class="flex justify-between items-center pt-4 border-t border-white/10 mt-2">
+                    <span class="text-xs text-neonRed font-game font-semibold"><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i> Level HOTS</span>
+                    <span class="text-neonCyan text-sm font-bold flex items-center gap-1 group-hover:translate-x-1 transition-transform">Pelajari <i class="fa-solid fa-chevron-right text-xs"></i></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= GAMEPLAY SECTION ================= -->
+    <div id="screen-game" class="screen min-h-screen w-full flex-col justify-between relative z-10 overflow-hidden">
+        
+        <!-- Three.js Canvas will sit here inside a wrapper -->
+        <div class="absolute inset-0 z-0 bg-darkBg">
+            <div id="threejs-container" class="w-full h-full"></div>
+        </div>
+
+        <!-- HUD: Heads-up Display (Overlaid on Top of Game) -->
+        <div class="relative w-full max-w-5xl mx-auto flex flex-col p-4 md:p-6 z-10 pointer-events-none">
+            <!-- Top Dashboard -->
+            <div class="flex justify-between items-center w-full">
+                <!-- Score & Combo Container -->
+                <div class="flex items-center gap-4">
+                    <div class="bg-cardBg/90 border-2 border-neonCyan/40 rounded-xl px-4 py-2 flex flex-col items-center shadow-neonCyan">
+                        <span class="text-[10px] font-game text-neonCyan tracking-widest uppercase">SKOR</span>
+                        <span id="hud-score" class="font-game text-2xl font-black text-white">0</span>
+                    </div>
+                    <div id="combo-container" class="scale-0 transition-transform duration-200 bg-cardBg/90 border-2 border-neonYellow/40 rounded-xl px-4 py-2 flex flex-col items-center shadow-neonYellow">
+                        <span class="text-[10px] font-game text-neonYellow tracking-widest uppercase">COMBO</span>
+                        <span id="hud-combo" class="font-game text-2xl font-black text-neonYellow">x1</span>
+                    </div>
+                </div>
+
+                <!-- Hearts & Coins Panel -->
+                <div class="flex items-center gap-3">
+                    <!-- Timer Bar Circle -->
+                    <div class="relative w-12 h-12 bg-cardBg/90 border border-white/10 rounded-full flex items-center justify-center">
+                        <svg class="w-10 h-10 rotate-[-90deg]">
+                            <circle cx="20" cy="20" r="16" stroke="#1f003a" stroke-width="4" fill="transparent" />
+                            <circle id="timer-circle" cx="20" cy="20" r="16" stroke="#00f0ff" stroke-width="4" fill="transparent" stroke-dasharray="100" stroke-dashoffset="0" />
+                        </svg>
+                        <span id="hud-timer" class="absolute font-game text-xs font-bold text-neonCyan">30</span>
+                    </div>
+
+                    <div class="bg-cardBg/90 border-2 border-neonPurple/40 rounded-xl px-4 py-2 flex items-center gap-3 shadow-neonPurple">
+                        <div class="flex items-center gap-1">
+                            <i class="fa-solid fa-coins text-neonYellow text-lg"></i>
+                            <span id="hud-coins" class="font-game text-lg font-bold text-neonYellow">0</span>
+                        </div>
+                        <div class="h-6 w-[2px] bg-white/20"></div>
+                        <div class="flex items-center gap-1">
+                            <span id="hud-lives-container" class="flex gap-1 text-neonRed text-lg">
+                                <i class="fa-solid fa-heart"></i>
+                                <i class="fa-solid fa-heart"></i>
+                                <i class="fa-solid fa-heart"></i>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Question Card -->
+            <div id="question-panel" class="w-full bg-cardBg/95 border-2 border-neonCyan/70 rounded-2xl p-4 md:p-5 mt-4 shadow-neonCyan max-w-2xl mx-auto flex flex-col items-center gap-2 pointer-events-auto select-none">
+                <div class="flex items-center gap-2">
+                    <span id="hud-difficulty" class="text-xs font-game bg-neonPurple border border-neonPurple/50 text-white px-3 py-1 rounded-full uppercase tracking-wider">SEDANG</span>
+                    <span id="question-type" class="text-xs text-white/60 font-medium">Trigonometri Dasar</span>
+                </div>
+                <p id="question-text" class="text-center text-white font-semibold text-base md:text-lg px-2 max-h-24 overflow-y-auto leading-snug">Sederhanakan bentuk trigonometri berikut: 1 - sin²(x)</p>
+            </div>
+        </div>
+
+        <!-- Lane Labels Overlay -->
+        <div class="relative w-full max-w-4xl mx-auto px-4 pb-6 md:pb-12 z-10 flex flex-col gap-4">
+            
+            <!-- Dynamic Phase Status Banner -->
+            <div id="phase-banner" class="w-full text-center py-2 px-4 rounded-xl font-game font-semibold text-xs tracking-wider transition-all duration-300">
+                <!-- Injected via JavaScript -->
+            </div>
+
+            <!-- Lock / Thinking State Placeholder -->
+            <div id="thinking-placeholder" class="w-full bg-cardBg/95 border-2 border-neonYellow/50 rounded-2xl p-6 flex flex-col items-center justify-center gap-3 text-center shadow-neonYellow animate-pulse pointer-events-auto">
+                <div class="flex items-center gap-3 text-neonYellow">
+                    <i class="fa-solid fa-brain text-2xl animate-bounce"></i>
+                    <span class="font-game text-sm md:text-base font-black tracking-widest">🧠 FASE BERPIKIR (HITUNG JAWABAN)</span>
+                </div>
+                <p class="text-xs text-white/70 max-w-md">Lakukan perhitungan di kertas atau pikiran Anda terlebih dahulu. Jalur pilihan jawaban dan rintangan gerbang akan muncul otomatis setelah hitung mundur selesai!</p>
+            </div>
+
+            <!-- Dynamic Options Grid (Fade in on choosing phase) -->
+            <div id="options-container" class="hidden grid grid-cols-3 gap-3 md:gap-6 pointer-events-auto transition-all duration-500 transform scale-95 opacity-0">
+                <!-- Option A / Left Lane -->
+                <button onclick="changeLane(0)" class="option-button border-2 border-neonPurple/50 bg-cardBg/90 hover:bg-neonPurple/10 rounded-2xl p-3 md:p-5 flex flex-col items-center justify-center transition-all select-none hover:scale-[1.03] active:scale-95">
+                    <span class="text-xs font-game text-neonPurple mb-1">JALUR KIRI (A)</span>
+                    <span id="option-a-val" class="text-sm md:text-lg font-bold text-white tracking-wide text-center">-</span>
+                </button>
+                <!-- Option B / Middle Lane -->
+                <button onclick="changeLane(1)" class="option-button border-2 border-neonCyan/50 bg-cardBg/90 hover:bg-neonCyan/10 rounded-2xl p-3 md:p-5 flex flex-col items-center justify-center transition-all select-none hover:scale-[1.03] active:scale-95">
+                    <span class="text-xs font-game text-neonCyan mb-1">JALUR TENGAH (B)</span>
+                    <span id="option-b-val" class="text-sm md:text-lg font-bold text-white tracking-wide text-center">-</span>
+                </button>
+                <!-- Option C / Right Lane -->
+                <button onclick="changeLane(2)" class="option-button border-2 border-neonOrange/50 bg-cardBg/90 hover:bg-neonOrange/10 rounded-2xl p-3 md:p-5 flex flex-col items-center justify-center transition-all select-none hover:scale-[1.03] active:scale-95">
+                    <span class="text-xs font-game text-neonOrange mb-1">JALUR KANAN (C)</span>
+                    <span id="option-c-val" class="text-sm md:text-lg font-bold text-white tracking-wide text-center">-</span>
+                </button>
+            </div>
+
+            <!-- Screen Shake and Flash Visual Enhancements -->
+            <div id="flash-effect" class="absolute inset-0 pointer-events-none opacity-0 transition-opacity duration-150 z-30"></div>
+
+            <div class="w-full text-center pointer-events-none">
+                <span class="bg-black/60 px-4 py-1.5 rounded-full text-[11px] font-game tracking-wider text-white/70">
+                    <i class="fa-solid fa-arrows-left-right text-neonCyan mr-1"></i> SWIPE / ARROW KEYS UNTUK PINDAH JALUR
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= EVALUASI & REVIEW SECTION ================= -->
+    <div id="screen-evaluasi" class="screen min-h-screen w-full flex-col p-6 z-10 overflow-y-auto">
+        <!-- Dashboard Header -->
+        <div class="w-full max-w-4xl mx-auto flex justify-between items-center mb-6">
+            <button onclick="playMenuClick(); navigateTo('home')" class="px-4 py-2 rounded-lg bg-cardBg/80 border border-neonPurple/40 text-neonPurple font-game font-bold text-sm flex items-center gap-2 hover:bg-neonPurple hover:text-white transition-all">
+                <i class="fa-solid fa-house"></i> BERANDA
+            </button>
+            <h2 class="font-game text-2xl md:text-3xl font-black text-neonCyan neon-glow-text">HASIL EVALUASI</h2>
+            <button onclick="playMenuClick(); navigateTo('difficulty')" class="px-4 py-2 rounded-lg bg-gradient-to-r from-neonOrange to-neonYellow text-darkBg font-game font-bold text-sm flex items-center gap-2 hover:scale-105 active:scale-95 transition-all">
+                <i class="fa-solid fa-rotate-left"></i> MAIN LAGI
+            </button>
+        </div>
+
+        <!-- Big Score Panel -->
+        <div class="w-full max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="bg-cardBg/95 border-2 border-neonYellow/50 rounded-2xl p-6 flex flex-col items-center justify-center text-center shadow-neonYellow relative overflow-hidden">
+                <div class="absolute -left-4 -bottom-4 w-20 h-20 bg-neonYellow/10 rounded-full blur-xl"></div>
+                <span class="text-xs font-game text-neonYellow tracking-widest uppercase mb-1">SKOR AKHIR</span>
+                <span id="eval-score" class="font-game text-5xl font-black text-white">0</span>
+                <span id="eval-badge" class="text-xs font-semibold text-white/70 mt-2">Belajar Lebih Giat!</span>
+            </div>
+
+            <div class="bg-cardBg/95 border-2 border-neonCyan/50 rounded-2xl p-6 flex flex-col items-center justify-center text-center shadow-neonCyan relative overflow-hidden">
+                <div class="absolute -right-4 -top-4 w-20 h-20 bg-neonCyan/10 rounded-full blur-xl"></div>
+                <span class="text-xs font-game text-neonCyan tracking-widest uppercase mb-1">KOIN DIKUMPULKAN</span>
+                <span id="eval-coins" class="font-game text-5xl font-black text-white">0</span>
+                <span class="text-xs font-semibold text-white/70 mt-2">Dapat digunakan membeli skin mendatang</span>
+            </div>
+
+            <div class="bg-cardBg/95 border-2 border-neonPurple/50 rounded-2xl p-6 flex flex-col items-center justify-center text-center shadow-neonPurple relative overflow-hidden">
+                <div class="absolute -right-4 -bottom-4 w-20 h-20 bg-neonPurple/10 rounded-full blur-xl"></div>
+                <span class="text-xs font-game text-neonPurple tracking-widest uppercase mb-1">COMBO TERTINGGI</span>
+                <span id="eval-combo" class="font-game text-5xl font-black text-white">x0</span>
+                <span class="text-xs font-semibold text-white/70 mt-2">Kunci kecepatan berpikir kilat</span>
+            </div>
+        </div>
+
+        <!-- Detailed Review List -->
+        <div class="w-full max-w-4xl mx-auto flex flex-col gap-4 mb-12">
+            <h3 class="font-game text-xl font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-list-check text-neonCyan"></i> Pembahasan Soal Terjawab
+            </h3>
+            
+            <div id="eval-questions-container" class="flex flex-col gap-4">
+                <!-- Question Review Cards will be dynamically loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= INFO MODAL / POPUPS ================= -->
+    <div id="info-modal" class="fixed inset-0 bg-black/85 flex items-center justify-center p-4 z-50 opacity-0 pointer-events-none transition-opacity duration-200">
+        <div class="bg-cardBg border-2 border-neonCyan/60 rounded-3xl p-6 max-w-md w-full shadow-neonCyan flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b border-white/10 pb-3">
+                <h3 class="font-game text-xl font-black text-neonCyan flex items-center gap-2">
+                    <i class="fa-solid fa-clipboard-question"></i> PETUNJUK PERMAINAN
+                </h3>
+                <button onclick="closeInfoModal()" class="text-white/60 hover:text-white text-xl"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="flex flex-col gap-3 text-sm text-white/80 leading-relaxed">
+                <p>Selamat datang di <strong>TrigoSurf: Neon Runner</strong>! Game edukasi yang menggabungkan adiksi Subway Surfers dengan pelajaran Trigonometri seru.</p>
+                
+                <h4 class="font-bold text-neonYellow mt-2"><i class="fa-solid fa-keyboard"></i> Cara Bermain (Keyboard/Layarsentuh)</h4>
+                <ul class="list-disc pl-5 flex flex-col gap-1">
+                    <li>Gunakan tombol <strong>Panah Kiri & Kanan</strong> atau tombol <strong>A & D</strong> untuk berpindah jalur lari.</li>
+                    <li>Di layar sentuh hp, lakukan <strong>Swipe Kiri / Swipe Kanan</strong> langsung di layar atau ketuk tombol opsi jawaban di bawah.</li>
+                    <li>Selesaikan soal matematika di bagian atas sebelum <strong>Waktu Habis</strong>!</li>
+                </ul>
+
+                <h4 class="font-bold text-neonOrange mt-2"><i class="fa-solid fa-shield-halved"></i> Nyawa & Aturan</h4>
+                <ul class="list-disc pl-5 flex flex-col gap-1">
+                    <li>Pemain dibekali <strong>3 Nyawa</strong>.</li>
+                    <li>Menabrak pembatas yang salah atau kehabisan waktu akan mengurangi 1 Nyawa.</li>
+                    <li>Jawaban benar akan menambah Skor, Combo, Koin, serta kecepatan lari!</li>
+                </ul>
+            </div>
+            <button onclick="closeInfoModal()" class="w-full py-3 bg-neonCyan text-darkBg font-game font-bold rounded-xl shadow-neonCyan hover:scale-105 active:scale-95 transition-all mt-2">
+                SAYA MENGERTI
+            </button>
+        </div>
+    </div>
+
+    <!-- ================= OBJECTIVE DETAIL MODAL ================= -->
+    <div id="objective-modal" class="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-50 opacity-0 pointer-events-none transition-opacity duration-200">
+        <div class="bg-cardBg border-2 border-neonYellow/60 rounded-3xl p-6 max-w-md w-full shadow-neonYellow flex flex-col gap-4">
+            <div class="flex justify-between items-center border-b border-white/10 pb-3">
+                <h3 id="obj-modal-title" class="font-game text-base md:text-lg font-black text-neonYellow flex items-center gap-2">
+                    <i class="fa-solid fa-bullseye animate-spin"></i> DETAIL TARGET
+                </h3>
+                <button onclick="closeObjectiveModal()" class="text-white/60 hover:text-white text-xl"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="obj-modal-desc" class="text-white/90 text-sm leading-relaxed flex flex-col gap-3 py-2">
+                <!-- Injected via JS -->
+            </div>
+            <div class="flex gap-3 mt-2">
+                <button onclick="closeObjectiveModal()" class="flex-1 py-3 bg-darkBg border border-white/10 text-white font-game text-xs font-bold rounded-xl hover:bg-white/5 transition-all">
+                    Kembali ke Beranda
+                </button>
+                <button onclick="closeObjectiveModal(); navigateTo('materi')" class="flex-1 py-3 bg-neonYellow text-darkBg font-game text-xs font-bold rounded-xl shadow-neonYellow hover:scale-105 transition-all">
+                    Buka Materi <i class="fa-solid fa-book-open ml-1"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= MATERI DETAIL POPUP ================= -->
+    <div id="materi-detail-popup" class="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-50 opacity-0 pointer-events-none transition-opacity duration-200">
+        <div id="materi-detail-card" class="bg-cardBg border-2 border-neonPurple/60 rounded-3xl p-6 max-w-2xl w-full shadow-neonPurple flex flex-col gap-4 max-h-[85vh] overflow-y-auto">
+            <!-- Header -->
+            <div class="flex justify-between items-start border-b border-white/10 pb-3">
+                <div>
+                    <span id="materi-popup-badge" class="text-xs font-game bg-neonPurple/20 border border-neonPurple/50 text-neonPurple px-3 py-1 rounded-full uppercase">Dasar</span>
+                    <h3 id="materi-popup-title" class="font-game text-2xl font-black text-neonCyan mt-2">Materi Title</h3>
+                </div>
+                <button onclick="closeMateriDetail()" class="text-white/60 hover:text-white text-2xl"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <!-- Dynamic Content Area -->
+            <div id="materi-popup-content" class="text-white/90 text-sm md:text-base leading-relaxed flex flex-col gap-4">
+                <!-- Content will be injected dynamically -->
+            </div>
+
+            <!-- Action buttons inside pop-up -->
+            <div class="flex gap-4 mt-4 border-t border-white/10 pt-4">
+                <button onclick="closeMateriDetail()" class="flex-1 py-3 bg-cardBg border border-white/20 text-white font-game font-bold rounded-xl hover:bg-white/10 transition-all">
+                    Tutup Materi
+                </button>
+                <button onclick="closeMateriDetail(); navigateTo('difficulty')" class="flex-1 py-3 bg-gradient-to-r from-neonOrange to-neonYellow text-darkBg font-game font-bold rounded-xl shadow-neonYellow hover:scale-105 active:scale-95 transition-all">
+                    Mulai Main <i class="fa-solid fa-play ml-1"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= JAVASCRIPT LOGIC ================= -->
+    <script>
+        // --- DATA MATERI TRIGONOMETRI ---
+        const MATERI_DATA = [
+            {
+                title: "Perbandingan Trigonometri (sin, cos, tan)",
+                badge: "Dasar",
+                content: `
+                    <div class="flex flex-col md:flex-row gap-4 items-center mb-4">
+                        <div class="bg-darkBg/60 p-4 rounded-xl border border-neonCyan/30 w-full md:w-1/2 flex flex-col items-center">
+                            <span class="text-xs font-semibold text-neonCyan mb-2">Ilustrasi Segitiga Siku-Siku</span>
+                            <svg class="w-44 h-36 text-neonYellow drop-shadow-[0_0_8px_#ffe600]" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                                <polygon points="4,20 20,20 20,4" />
+                                <text x="11" y="23" fill="white" font-size="2" class="font-semibold text-[3px]">Samping (Sa)</text>
+                                <text x="21" y="12" fill="white" font-size="2" class="font-semibold text-[3px]">Depan (De)</text>
+                                <text x="9" y="10" fill="white" font-size="2" class="font-semibold text-[3px]">Miring (Mi)</text>
+                                <text x="6" y="19" fill="#00f0ff" font-size="2" class="font-semibold text-[4px]">θ</text>
+                            </svg>
+                        </div>
+                        <div class="w-full md:w-1/2 flex flex-col gap-2">
+                            <p class="text-sm">Pada segitiga siku-siku dengan sudut <strong>&theta;</strong>, didefinisikan perbandingan utama:</p>
+                            <div class="bg-darkBg/80 p-3 rounded-lg border-l-4 border-neonPurple flex flex-col gap-2 font-mono text-xs">
+                                <div><span class="text-neonCyan">sin &theta;</span> = Depan / Miring (<span class="text-neonYellow">de / mi</span>)</div>
+                                <div><span class="text-neonCyan">cos &theta;</span> = Samping / Miring (<span class="text-neonYellow">sa / mi</span>)</div>
+                                <div><span class="text-neonCyan">tan &theta;</span> = Depan / Samping (<span class="text-neonYellow">de / sa</span>)</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-4 bg-neonPurple/10 border border-neonPurple/30 rounded-xl">
+                        <h4 class="font-bold text-neonYellow mb-2 text-sm"><i class="fa-solid fa-lightbulb"></i> Cara Cepat Menghafal:</h4>
+                        <p class="text-xs">Sering disingkat: <strong>SIN-DE-MI</strong> (Sinus = depan/miring), <strong>KOS-SA-MI</strong> (Kosinus = samping/miring), dan <strong>TAN-DE-SA</strong> (Tangen = depan/samping).</p>
+                    </div>
+                `
+            },
+            {
+                title: "Sudut-Sudut Istimewa",
+                badge: "Sudut",
+                content: `
+                    <p class="mb-2">Sudut istimewa adalah sudut yang nilai trigonometrinya dapat ditentukan secara langsung tanpa alat hitung.</p>
+                    <div class="overflow-x-auto my-3">
+                        <table class="w-full text-center border-collapse border border-white/10 text-xs">
+                            <thead>
+                                <tr class="bg-neonPurple/20 text-neonCyan font-game">
+                                    <th class="p-2 border border-white/10">Sudut &theta;</th>
+                                    <th class="p-2 border border-white/10">0&deg;</th>
+                                    <th class="p-2 border border-white/10">30&deg;</th>
+                                    <th class="p-2 border border-white/10">45&deg;</th>
+                                    <th class="p-2 border border-white/10">60&deg;</th>
+                                    <th class="p-2 border border-white/10">90&deg;</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="bg-darkBg/40">
+                                    <td class="p-2 border border-white/10 font-bold text-neonYellow">sin &theta;</td>
+                                    <td class="p-2 border border-white/10">0</td>
+                                    <td class="p-2 border border-white/10">1/2</td>
+                                    <td class="p-2 border border-white/10">&frac12;&radic;2</td>
+                                    <td class="p-2 border border-white/10">&frac12;&radic;3</td>
+                                    <td class="p-2 border border-white/10">1</td>
+                                </tr>
+                                <tr class="bg-darkBg/60">
+                                    <td class="p-2 border border-white/10 font-bold text-neonYellow">cos &theta;</td>
+                                    <td class="p-2 border border-white/10">1</td>
+                                    <td class="p-2 border border-white/10">&frac12;&radic;3</td>
+                                    <td class="p-2 border border-white/10">&frac12;&radic;2</td>
+                                    <td class="p-2 border border-white/10">1/2</td>
+                                    <td class="p-2 border border-white/10">0</td>
+                                </tr>
+                                <tr class="bg-darkBg/40">
+                                    <td class="p-2 border border-white/10 font-bold text-neonYellow">tan &theta;</td>
+                                    <td class="p-2 border border-white/10">0</td>
+                                    <td class="p-2 border border-white/10">&frac13;&radic;3</td>
+                                    <td class="p-2 border border-white/10">1</td>
+                                    <td class="p-2 border border-white/10">&radic;3</td>
+                                    <td class="p-2 border border-white/10">&infin;</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="p-4 bg-neonCyan/10 border border-neonCyan/30 rounded-xl">
+                        <h4 class="font-bold text-neonCyan mb-1 text-sm"><i class="fa-solid fa-graduation-cap"></i> Tips Pola Grafik:</h4>
+                        <p class="text-xs">Nilai <strong>sin</strong> terus membesar dari 0 hingga 1. Sebaliknya, nilai <strong>cos</strong> mengecil dari 1 menuju 0 seiring bertambahnya sudut.</p>
+                    </div>
+                `
+            },
+            {
+                title: "Identitas Trigonometri Dasar",
+                badge: "Aljabar",
+                content: `
+                    <p class="mb-2">Identitas trigonometri adalah hubungan persamaan yang memuat fungsi-fungsi trigonometri bernilai benar untuk setiap penggantian variabel.</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                        <div class="bg-darkBg/60 p-4 rounded-xl border border-neonYellow/30">
+                            <h4 class="font-bold text-neonYellow mb-2 text-sm">1. Identitas Kebalikan</h4>
+                            <ul class="list-disc pl-5 text-xs flex flex-col gap-1">
+                                <li>csc x = 1 / sin x</li>
+                                <li>sec x = 1 / cos x</li>
+                                <li>cot x = 1 / tan x</li>
+                            </ul>
+                        </div>
+                        <div class="bg-darkBg/60 p-4 rounded-xl border border-neonCyan/30">
+                            <h4 class="font-bold text-neonCyan mb-2 text-sm">2. Identitas Phytagoras</h4>
+                            <ul class="list-disc pl-5 text-xs flex flex-col gap-1 font-mono">
+                                <li>sin² x + cos² x = 1</li>
+                                <li>1 + tan² x = sec² x</li>
+                                <li>1 + cot² x = csc² x</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="p-3 bg-neonPurple/10 border border-neonPurple/30 rounded-xl text-xs">
+                        <strong>Contoh Soal Sederhana:</strong> Bentuk (1 - sin² x) dapat langsung diganti menjadi cos² x menggunakan hubungan Phytagoras di atas.
+                    </div>
+                `
+            },
+            {
+                title: "Kuadran Trigonometri",
+                badge: "Analitis",
+                content: `
+                    <div class="flex flex-col md:flex-row gap-4 items-center mb-4">
+                        <div class="bg-darkBg/60 p-4 rounded-xl border border-neonCyan/30 w-full md:w-1/2 flex justify-center">
+                            <!-- Visual Quadrant Grid -->
+                            <div class="grid grid-cols-2 gap-2 text-center text-xs font-semibold w-40 h-40 font-game">
+                                <div class="border border-neonPurple/40 p-2 flex flex-col items-center justify-center bg-neonPurple/5 rounded-lg">
+                                    <span class="text-[10px] text-white/50">Kuadran II</span>
+                                    <span class="text-neonPurple">SIN (+)</span>
+                                    <span class="text-[9px] text-white/40">90&deg; - 180&deg;</span>
+                                </div>
+                                <div class="border border-neonCyan/40 p-2 flex flex-col items-center justify-center bg-neonCyan/5 rounded-lg">
+                                    <span class="text-[10px] text-white/50">Kuadran I</span>
+                                    <span class="text-neonCyan">SEMUA (+)</span>
+                                    <span class="text-[9px] text-white/40">0&deg; - 90&deg;</span>
+                                </div>
+                                <div class="border border-neonOrange/40 p-2 flex flex-col items-center justify-center bg-neonOrange/5 rounded-lg">
+                                    <span class="text-[10px] text-white/50">Kuadran III</span>
+                                    <span class="text-neonOrange">TAN (+)</span>
+                                    <span class="text-[9px] text-white/40">180&deg; - 270&deg;</span>
+                                </div>
+                                <div class="border border-neonYellow/40 p-2 flex flex-col items-center justify-center bg-neonYellow/5 rounded-lg">
+                                    <span class="text-[10px] text-white/50">Kuadran IV</span>
+                                    <span class="text-neonYellow">COS (+)</span>
+                                    <span class="text-[9px] text-white/40">270&deg; - 360&deg;</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-1/2 text-sm">
+                            <p class="mb-2">Tanda positif/negatif fungsi ditentukan posisi sudut di koordinat kartesius:</p>
+                            <p class="text-xs mb-2"><strong>Jembatan Keledai Memori:</strong> <br><span class="text-neonCyan">"Semua</span> <span class="text-neonPurple">Sindikat</span> <span class="text-neonOrange">Tangannya</span> <span class="text-neonYellow">Kosong"</span></p>
+                            <ul class="list-disc pl-5 text-xs flex flex-col gap-1">
+                                <li><strong>K1 (Semua)</strong>: sin, cos, tan positif</li>
+                                <li><strong>K2 (Sindikat)</strong>: hanya sin positif</li>
+                                <li><strong>K3 (Tangannya)</strong>: hanya tan positif</li>
+                                <li><strong>K4 (Kosong)</strong>: hanya cos positif</li>
+                            </ul>
+                        </div>
+                    </div>
+                `
+            },
+            {
+                title: "Aplikasi Kontekstual",
+                badge: "Penerapan",
+                content: `
+                    <p class="mb-3">Trigonometri sangat berguna di dunia nyata, khususnya untuk mengukur jarak atau tinggi obyek tinggi secara tidak langsung tanpa memanjatnya.</p>
+                    <div class="bg-darkBg/60 p-4 rounded-xl border border-neonYellow/30 mb-4 text-xs">
+                        <h4 class="font-bold text-neonYellow mb-2"><i class="fa-solid fa-mountain"></i> Konsep Utama:</h4>
+                        <ul class="list-disc pl-5 flex flex-col gap-1.5">
+                            <li><strong>Sudut Elevasi:</strong> Sudut yang dibentuk arah pandang mendatar (horisontal) ke atas untuk melihat obyek tinggi.</li>
+                            <li><strong>Sudut Depresi:</strong> Sudut yang dibentuk arah pandang mendatar (horisontal) ke arah bawah (contoh: dari puncak tebing melihat kapal).</li>
+                        </ul>
+                    </div>
+                    <div class="p-3 bg-neonCyan/10 border border-neonCyan/30 rounded-xl text-xs">
+                        <strong>Rumus Kunci:</strong> Seringkali menggunakan rumus <span class="text-neonCyan font-bold">tan &theta; = Tinggi Obyek / Jarak Pengamat</span>. Dengan mengetahui sudut pandang dan jarak, kita bisa menghitung tinggi obyek dengan mudah!
+                    </div>
+                `
+            }
+        ];
+
+        // --- DATA BANK SOAL TRIGONOMETRI ---
+        const QUESTIONS_BANK = [
+            // MUDAH (Easy)
+            {
+                text: "Berapakah nilai dari sin(30°)?",
+                category: "MUDAH",
+                options: ["1/2", "1/2 √2", "1/2 √3"],
+                correctIndex: 0,
+                explanation: "Berdasarkan tabel sudut istimewa di kuadran I, nilai eksak dari sin(30°) adalah 1/2.",
+                time: 30
+            },
+            {
+                text: "Pada segitiga siku-siku, perbandingan sisi depan dibagi miring (de/mi) adalah...",
+                category: "MUDAH",
+                options: ["Kosinus", "Sinus", "Tangen"],
+                correctIndex: 1,
+                explanation: "Definisi perbandingan dasar: Sinus adalah depan dibagi miring (SinDeMi).",
+                time: 30
+            },
+            {
+                text: "Berapakah nilai dari tan(45°)?",
+                category: "MUDAH",
+                options: ["0", "√3", "1"],
+                correctIndex: 2,
+                explanation: "Nilai tan(45°) = sin(45°)/cos(45°) = (&frac12;&radic;2)/(&frac12;&radic;2) = 1.",
+                time: 30
+            },
+            {
+                text: "Berapakah nilai dari cos(90°)?",
+                category: "MUDAH",
+                options: ["0", "1", "1/2"],
+                correctIndex: 0,
+                explanation: "Berdasarkan nilai sudut istimewa, cos(90°) berharga tepat 0.",
+                time: 30
+            },
+            {
+                text: "Berapakah nilai dari cos(60°)?",
+                category: "MUDAH",
+                options: ["1/2", "1/2 √2", "1"],
+                correctIndex: 0,
+                explanation: "Nilai kosinus dari sudut istimewa 60° adalah 1/2.",
+                time: 30
+            },
+
+            // SEDANG (Medium)
+            {
+                text: "Di kuadran manakah nilai sin positif, namun cos bernilai negatif?",
+                category: "SEDANG",
+                options: ["Kuadran I", "Kuadran II", "Kuadran III"],
+                correctIndex: 1,
+                explanation: "Sesuai aturan kuadran (Semua Sindikat Tangannya Kosong), di Kuadran II hanya Sinus (dan cosecan) yang bernilai positif.",
+                time: 30
+            },
+            {
+                text: "Jika sin(x) = 3/5 di kuadran I, maka berapakah nilai cos(x)?",
+                category: "SEDANG",
+                options: ["4/5", "3/4", "5/4"],
+                correctIndex: 0,
+                explanation: "Gunakan triple phytagoras (3, 4, 5) untuk mencari sisi samping: sa = √(5² - 3²) = 4. Maka cos(x) = sa/mi = 4/5.",
+                time: 30
+            },
+            {
+                text: "Sederhanakan ekspresi berikut: 1 - sin²(x)",
+                category: "SEDANG",
+                options: ["tan²(x)", "sec²(x)", "cos²(x)"],
+                correctIndex: 2,
+                explanation: "Menggunakan identitas Phytagoras: sin²(x) + cos²(x) = 1, sehingga 1 - sin²(x) = cos²(x).",
+                time: 30
+            },
+            {
+                text: "Berapakah nilai dari sin(120°)?",
+                category: "SEDANG",
+                options: ["1/2", "1/2 √3", "-1/2 √3"],
+                correctIndex: 1,
+                explanation: "sin(120°) ada di Kuadran II. sin(120°) = sin(180° - 60°) = sin(60°) = 1/2 √3.",
+                time: 30
+            },
+            {
+                text: "Jika cos(x) = 1/2 di kuadran IV, berapakah nilai x?",
+                category: "SEDANG",
+                options: ["120°", "240°", "300°"],
+                correctIndex: 2,
+                explanation: "Di kuadran IV, nilai cosinus bernilai positif. Sudut berelasi yang memiliki nilai cos 1/2 di kuadran IV adalah 360° - 60° = 300°.",
+                time: 30
+            },
+
+            // SULIT (HOTS & Kontekstual)
+            {
+                text: "Sederhanakan bentuk: (sin(x) + cos(x))² - 2.sin(x).cos(x)",
+                category: "SULIT",
+                options: ["0", "1", "2.sin(x)"],
+                correctIndex: 1,
+                explanation: "(sin x + cos x)² = sin² x + cos² x + 2 sin x cos x. Dikurangi 2 sin x cos x menyisakan sin² x + cos² x yang bernilai 1.",
+                time: 50
+            },
+            {
+                text: "Jika tan(A) = p untuk A lancip, maka nilai dari sin(A) adalah...",
+                category: "SULIT",
+                options: ["p / √(1 + p²)", "1 / √(1 + p²)", "p.√(1 + p²)"],
+                correctIndex: 0,
+                explanation: "tan A = p/1 (de=p, sa=1). Sisi miring (mi) = √(p² + 1). Maka sin A = de/mi = p / √(1+p²).",
+                time: 50
+            },
+            {
+                text: "Berapakah nilai dari cos(150°) + sin(120°)?",
+                category: "SULIT",
+                options: ["0", "√3", "-√3"],
+                correctIndex: 0,
+                explanation: "cos(150°) = -cos(30°) = -1/2 √3. Dan sin(120°) = sin(60°) = 1/2 √3. Jumlah keduanya adalah 0.",
+                time: 50
+            },
+            {
+                text: "Seseorang berdiri 10m dari pohon melihat puncak pohon dengan sudut elevasi 45°. Jika tinggi pengamat 1,6m, berapakah tinggi pohon?",
+                category: "SULIT",
+                options: ["10 m", "11,6 m", "8,4 m"],
+                correctIndex: 1,
+                explanation: "tan(45°) = tinggi_pohon_bagian_atas / jarak. 1 = x / 10 => x = 10m. Total tinggi = x + tinggi orang = 10m + 1,6m = 11,6m.",
+                time: 50
+            },
+            {
+                text: "Sebuah tangga sepanjang 6m disandarkan ke dinding dengan sudut kemiringan 60° terhadap lantai. Tinggi dinding yang dicapai tangga adalah...",
+                category: "SULIT",
+                options: ["3 m", "3√3 m", "6√3 m"],
+                correctIndex: 1,
+                explanation: "Hubungan tinggi dinding (depan) dan tangga (miring) menggunakan sin. sin(60°) = tinggi/6 => 1/2 √3 = tinggi/6 => tinggi = 3√3 m.",
+                time: 50
+            },
+            {
+                text: "Kapal melihat mercusuar setinggi 50m dengan sudut depresi 30°. Jarak mendatar kapal ke mercusuar adalah...",
+                category: "SULIT",
+                options: ["50√3 m", "50 m", "25√3 m"],
+                correctIndex: 0,
+                explanation: "tan(30°) = tinggi / jarak => 1/√3 = 50 / jarak => jarak = 50√3 m.",
+                time: 50
+            },
+            {
+                text: "Bentuk sederhana dari (sec² x - 1) / tan² x adalah...",
+                category: "SULIT",
+                options: ["1", "sin² x", "cos² x"],
+                correctIndex: 0,
+                explanation: "Berdasarkan identitas Phytagoras, 1 + tan² x = sec² x, sehingga sec² x - 1 = tan² x. Maka tan² x / tan² x = 1.",
+                time: 50
+            }
+        ];
+
+        // --- MANDATORY SOUND SYSTEM (WEB AUDIO API SYNTHESIZER) ---
+        let audioCtx = null;
+        let isAudioEnabled = true;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function toggleAudio() {
+            isAudioEnabled = !isAudioEnabled;
+            const icon = document.getElementById('audio-icon');
+            if (isAudioEnabled) {
+                icon.className = 'fa-solid fa-volume-high';
+                initAudio();
+            } else {
+                icon.className = 'fa-solid fa-volume-xmark';
+            }
+        }
+
+        function playSound(type) {
+            if (!isAudioEnabled) return;
+            initAudio();
+
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            const now = audioCtx.currentTime;
+
+            if (type === 'click') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, now);
+                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+                osc.start(now);
+                osc.stop(now + 0.1);
+            } 
+            else if (type === 'coin') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(987.77, now); // B5
+                osc.frequency.setValueAtTime(1318.51, now + 0.08); // E6
+                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+                osc.start(now);
+                osc.stop(now + 0.35);
+            } 
+            else if (type === 'correct') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(523.25, now); // C5
+                osc.frequency.setValueAtTime(659.25, now + 0.08); // E5
+                osc.frequency.setValueAtTime(783.99, now + 0.16); // G5
+                osc.frequency.setValueAtTime(1046.50, now + 0.24); // C6
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+                osc.start(now);
+                osc.stop(now + 0.6);
+            } 
+            else if (type === 'incorrect') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(220, now);
+                osc.frequency.exponentialRampToValueAtTime(80, now + 0.3);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+                osc.start(now);
+                osc.stop(now + 0.45);
+            } 
+            else if (type === 'swipe') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(600, now);
+                osc.frequency.exponentialRampToValueAtTime(300, now + 0.12);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+                osc.start(now);
+                osc.stop(now + 0.12);
+            }
+            else if (type === 'levelup') {
+                osc.type = 'square';
+                const notes = [659, 783, 1046, 1318];
+                notes.forEach((freq, idx) => {
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.1);
+                });
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+                osc.start(now);
+                osc.stop(now + 0.5);
+            }
+            else if (type === 'gameover') {
+                osc.type = 'sine';
+                const notes = [440, 415, 392, 349];
+                notes.forEach((freq, idx) => {
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.15);
+                });
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+                osc.start(now);
+                osc.stop(now + 0.8);
+            }
+        }
+
+        function playMenuClick() {
+            playSound('click');
+        }
+
+        // --- GAME PLAY STATE MANAGEMENT ---
+        let currentScreen = 'home';
+        let gameState = {
+            difficulty: 'MUDAH', // Default difficulty
+            score: 0,
+            combo: 0,
+            maxCombo: 0,
+            coins: 0,
+            lives: 3,
+            currentQuestion: null,
+            timer: 30,
+            maxTimer: 30,
+            timerInterval: null,
+            questionsHistory: [],
+            isGameOver: false,
+            playerLane: 1,
+            currentCorrectLane: 1,
+            phase: 'THINKING' // 'THINKING' or 'CHOOSING' phase
+        };
+
+        // UI Routing System
+        function navigateTo(screenId) {
+            if (currentScreen === 'game' && screenId !== 'game') {
+                stopGameLoop();
+            }
+
+            const currentActive = document.querySelector('.screen.active');
+            if (currentActive) {
+                currentActive.classList.remove('active');
+            }
+
+            const targetScreen = document.getElementById(`screen-${screenId}`);
+            if (targetScreen) {
+                targetScreen.classList.add('active');
+            }
+            currentScreen = screenId;
+        }
+
+        // --- HOMESCREEN HANDLERS & OBJECTIVES MODAL ---
+        function showObjectiveDetail(id) {
+            playMenuClick();
+            const modal = document.getElementById('objective-modal');
+            const title = document.getElementById('obj-modal-title');
+            const desc = document.getElementById('obj-modal-desc');
+
+            if (id === 1) {
+                title.innerHTML = `<i class="fa-solid fa-circle-check text-neonCyan"></i> RASIO TRIGONOMETRI`;
+                desc.innerHTML = `
+                    <p><strong>Bagaimana cara mencapainya di game?</strong></p>
+                    <p class="text-white/80">Kuasai konsep perbandingan dasar seperti <strong>sin (de/mi)</strong>, <strong>cos (sa/mi)</strong>, dan <strong>tan (de/sa)</strong>.</p>
+                    <div class="p-3 bg-neonCyan/10 border border-neonCyan/30 rounded-xl text-xs mt-1">
+                        💡 <strong>Tips Runner:</strong> Saat berlari, pilihlah gerbang jalur yang menunjukkan hasil perhitungan sudut istimewa yang tepat secara cepat sebelum tertabrak!
+                    </div>
+                `;
+            } else if (id === 2) {
+                title.innerHTML = `<i class="fa-solid fa-circle-check text-neonOrange"></i> TINGGI OBJEK REALISTIS`;
+                desc.innerHTML = `
+                    <p><strong>Bagaimana cara mencapainya di game?</strong></p>
+                    <p class="text-white/80">Kamu akan dihadapkan pada <strong>Soal Kontekstual (HOTS)</strong> berupa cerita pengukuran tinggi gedung atau pohon menggunakan sudut elevasi.</p>
+                    <div class="p-3 bg-neonOrange/10 border border-neonOrange/30 rounded-xl text-xs mt-1">
+                        💡 <strong>Rumus Cepat:</strong> Selalu gunakan rumus <strong>tan &theta; = depan/samping</strong>. Tambahkan dengan tinggi badan orang yang mengamati jika ditanyakan tinggi total objek!
+                    </div>
+                `;
+            }
+
+            modal.classList.remove('pointer-events-none');
+            modal.classList.add('opacity-100');
+        }
+
+        function closeObjectiveModal() {
+            playMenuClick();
+            const modal = document.getElementById('objective-modal');
+            modal.classList.add('pointer-events-none');
+            modal.classList.remove('opacity-100');
+        }
+
+        function showInfoModal() {
+            playMenuClick();
+            const modal = document.getElementById('info-modal');
+            modal.classList.remove('pointer-events-none');
+            modal.classList.add('opacity-100');
+        }
+
+        function closeInfoModal() {
+            playMenuClick();
+            const modal = document.getElementById('info-modal');
+            modal.classList.add('pointer-events-none');
+            modal.classList.remove('opacity-100');
+        }
+
+        // --- MATERI NAVIGATION ---
+        function openMateriDetail(index) {
+            playMenuClick();
+            const data = MATERI_DATA[index];
+            document.getElementById('materi-popup-badge').innerText = data.badge;
+            document.getElementById('materi-popup-title').innerText = data.title;
+            document.getElementById('materi-popup-content').innerHTML = data.content;
+
+            const modal = document.getElementById('materi-detail-popup');
+            modal.classList.remove('pointer-events-none');
+            modal.classList.add('opacity-100');
+        }
+
+        function closeMateriDetail() {
+            playMenuClick();
+            const modal = document.getElementById('materi-detail-popup');
+            modal.classList.add('pointer-events-none');
+            modal.classList.remove('opacity-100');
+        }
+
+        // --- THREE.JS GAME RUNNER VISUALS (Pseudo-3D / 3D Tracks) ---
+        let scene, camera, renderer;
+        let runningLines = [];
+        let gateMeshGroup = null;
+        let animationFrameId = null;
+        let trackSpeed = 0.45;
+        let backgroundGrid = null;
+        let playerSpheres = [];
+
+        function initThreeJS() {
+            const container = document.getElementById('threejs-container');
+            container.innerHTML = '';
+
+            // Scene setup
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x0b001a, 0.015);
+
+            camera = new THREE.PerspectiveCamera(65, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera.position.set(0, 3, 9);
+            camera.lookAt(new THREE.Vector3(0, 1.2, -10));
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setClearColor(0x0b001a, 1);
+            container.appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0x3a1d60, 1.5);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0x00f0ff, 1.2);
+            directionalLight.position.set(0, 5, 5);
+            scene.add(directionalLight);
+
+            buildSubwayTracks();
+            buildPlayerModel();
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function buildSubwayTracks() {
+            const trackWidth = 8;
+            const laneStep = trackWidth / 3;
+
+            backgroundGrid = new THREE.GridHelper(100, 30, 0xbc13fe, 0x1f005a);
+            backgroundGrid.position.set(0, -0.5, -40);
+            scene.add(backgroundGrid);
+
+            const dividerMaterial = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
+            for (let i = -1.5; i <= 1.5; i += 1.0) {
+                const geom = new THREE.CylinderGeometry(0.06, 0.06, 120);
+                const pipe = new THREE.Mesh(geom, dividerMaterial);
+                pipe.rotation.x = Math.PI / 2;
+                pipe.position.set(i * 3.2, -0.4, -40);
+                scene.add(pipe);
+            }
+        }
+
+        function buildPlayerModel() {
+            playerSpheres = [];
+            const hoverboardGeom = new THREE.BoxGeometry(1.6, 0.15, 2.5);
+            const hoverboardMat = new THREE.MeshPhongMaterial({ color: 0xbc13fe, emissive: 0x3a0066, shininess: 100 });
+            const hoverboard = new THREE.Mesh(hoverboardGeom, hoverboardMat);
+            hoverboard.position.set(0, 0.25, 4.5);
+            scene.add(hoverboard);
+            playerSpheres.push(hoverboard);
+
+            const coreGeom = new THREE.SphereGeometry(0.5, 16, 16);
+            const coreMat = new THREE.MeshPhongMaterial({ color: 0x00ffff, emissive: 0x006666 });
+            const core = new THREE.Mesh(coreGeom, coreMat);
+            core.position.set(0, 1.1, 4.5);
+            scene.add(core);
+            playerSpheres.push(core);
+        }
+
+        function spawnObstacleGates() {
+            if (gateMeshGroup) {
+                scene.remove(gateMeshGroup);
+            }
+
+            gateMeshGroup = new THREE.Group();
+            gateMeshGroup.position.set(0, 0, -60);
+
+            const laneXPositions = [-3.2, 0, 3.2];
+            const colors = [0xbc13fe, 0x00f0ff, 0xff6c00];
+
+            laneXPositions.forEach((xPos, idx) => {
+                const subGroup = new THREE.Group();
+                subGroup.position.set(xPos, 0, 0);
+
+                const frameMat = new THREE.MeshBasicMaterial({ color: colors[idx] });
+                
+                const pL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 2.5, 0.15), frameMat);
+                pL.position.set(-1.1, 1.25, 0);
+                subGroup.add(pL);
+
+                const pR = new THREE.Mesh(new THREE.BoxGeometry(0.15, 2.5, 0.15), frameMat);
+                pR.position.set(1.1, 1.25, 0);
+                subGroup.add(pR);
+
+                const pT = new THREE.Mesh(new THREE.BoxGeometry(2.35, 0.15, 0.15), frameMat);
+                pT.position.set(0, 2.5, 0);
+                subGroup.add(pT);
+
+                const crystalGeom = new THREE.OctahedronGeometry(0.4, 0);
+                const crystalMat = new THREE.MeshPhongMaterial({ color: colors[idx], emissive: colors[idx] * 0.3 });
+                const crystal = new THREE.Mesh(crystalGeom, crystalMat);
+                crystal.position.set(0, 1.25, 0);
+                crystal.name = `crystal_${idx}`;
+                subGroup.add(crystal);
+
+                gateMeshGroup.add(subGroup);
+            });
+
+            scene.add(gateMeshGroup);
+        }
+
+        // --- GAMEPLAY ENGINE CORE CONTROLS ---
+
+        // Block player movement if game is locked on thinking phase
+        function changeLane(targetLane) {
+            if (gameState.isGameOver || currentScreen !== 'game' || gameState.phase === 'THINKING') return;
+            
+            if (targetLane !== gameState.playerLane) {
+                gameState.playerLane = targetLane;
+                playSound('swipe');
+                highlightOptionButtons();
+            }
+        }
+
+        function highlightOptionButtons() {
+            const btns = document.querySelectorAll('.option-button');
+            btns.forEach((btn, idx) => {
+                if (idx === gameState.playerLane) {
+                    btn.classList.add('bg-white/20', 'scale-[1.05]');
+                    if (idx === 0) btn.className = btn.className.replace('border-neonPurple/50', 'border-neonPurple shadow-neonPurple');
+                    if (idx === 1) btn.className = btn.className.replace('border-neonCyan/50', 'border-neonCyan shadow-neonCyan');
+                    if (idx === 2) btn.className = btn.className.replace('border-neonOrange/50', 'border-neonOrange shadow-neonOrange');
+                } else {
+                    btn.classList.remove('bg-white/20', 'scale-[1.05]');
+                    btn.className = btn.className.replace('border-neonPurple shadow-neonPurple', 'border-neonPurple/50');
+                    btn.className = btn.className.replace('border-neonCyan shadow-neonCyan', 'border-neonCyan/50');
+                    btn.className = btn.className.replace('border-neonOrange shadow-neonOrange', 'border-neonOrange/50');
+                }
+            });
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (currentScreen !== 'game' || gameState.isGameOver) return;
+            
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+                if (gameState.playerLane > 0) {
+                    changeLane(gameState.playerLane - 1);
+                }
+            } 
+            else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+                if (gameState.playerLane < 2) {
+                    changeLane(gameState.playerLane + 1);
+                }
+            }
+        });
+
+        let touchStartX = 0;
+        let touchEndX = 0;
+
+        window.addEventListener('touchstart', (e) => {
+            if (currentScreen !== 'game') return;
+            touchStartX = e.changedTouches[0].screenX;
+        }, false);
+
+        window.addEventListener('touchend', (e) => {
+            if (currentScreen !== 'game') return;
+            touchEndX = e.changedTouches[0].screenX;
+            handleSwipe();
+        }, false);
+
+        function handleSwipe() {
+            const threshold = 40;
+            if (touchEndX < touchStartX - threshold) {
+                if (gameState.playerLane > 0) {
+                    changeLane(gameState.playerLane - 1);
+                }
+            }
+            if (touchEndX > touchStartX + threshold) {
+                if (gameState.playerLane < 2) {
+                    changeLane(gameState.playerLane + 1);
+                }
+            }
+        }
+
+        // --- GAME PLAY ENGINE LIFECYCLE ---
+
+        function selectDifficulty(diff) {
+            playMenuClick();
+            gameState.difficulty = diff;
+            startGame();
+        }
+
+        function startGame() {
+            // Reset player states
+            gameState.score = 0;
+            gameState.combo = 0;
+            gameState.maxCombo = 0;
+            gameState.coins = 0;
+            gameState.lives = 3;
+            gameState.questionsHistory = [];
+            gameState.isGameOver = false;
+            gameState.playerLane = 1;
+            gameState.phase = 'THINKING'; // Start in thinking mode
+            trackSpeed = 0.45;
+
+            document.getElementById('hud-score').innerText = '0';
+            document.getElementById('hud-coins').innerText = '0';
+            document.getElementById('combo-container').classList.add('scale-0');
+            updateLivesUI();
+
+            navigateTo('game');
+
+            initThreeJS();
+            loadNextQuestion();
+            runThreeJSLoop();
+        }
+
+        // Main Animation Frame loop
+        function runThreeJSLoop() {
+            if (currentScreen !== 'game') return;
+
+            animationFrameId = requestAnimationFrame(runThreeJSLoop);
+
+            if (backgroundGrid) {
+                backgroundGrid.position.z += trackSpeed;
+                if (backgroundGrid.position.z >= 0) {
+                    backgroundGrid.position.z = -40;
+                }
+            }
+
+            // Only slide the answer gates if currently in CHOOSING phase
+            if (gateMeshGroup && gameState.phase === 'CHOOSING') {
+                gateMeshGroup.position.z += trackSpeed;
+
+                gateMeshGroup.children.forEach((gate, idx) => {
+                    const crystal = gate.getObjectByName(`crystal_${idx}`);
+                    if (crystal) {
+                        crystal.rotation.y += 0.03;
+                        crystal.rotation.x += 0.015;
+                    }
+                });
+
+                if (gateMeshGroup.position.z >= 4.5 && gateMeshGroup.position.z < 4.5 + trackSpeed + 0.1) {
+                    evaluateGateCollision();
+                }
+            }
+
+            if (playerSpheres.length > 0) {
+                let targetX = 0;
+                if (gameState.playerLane === 0) targetX = -3.2;
+                if (gameState.playerLane === 1) targetX = 0;
+                if (gameState.playerLane === 2) targetX = 3.2;
+
+                playerSpheres.forEach(mesh => {
+                    mesh.position.x = THREE.MathUtils.lerp(mesh.position.x, targetX, 0.25);
+                    if (mesh.geometry.type === 'BoxGeometry') {
+                        mesh.position.y = 0.25 + Math.sin(Date.now() * 0.005) * 0.04;
+                    } else {
+                        mesh.position.y = 1.1 + Math.sin(Date.now() * 0.005) * 0.04;
+                    }
+                });
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function stopGameLoop() {
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+        }
+
+        function updateLivesUI() {
+            const livesContainer = document.getElementById('hud-lives-container');
+            livesContainer.innerHTML = '';
+            for (let i = 0; i < 3; i++) {
+                if (i < gameState.lives) {
+                    livesContainer.innerHTML += '<i class="fa-solid fa-heart animate-pulse"></i>';
+                } else {
+                    livesContainer.innerHTML += '<i class="fa-regular fa-heart opacity-30"></i>';
+                }
+            }
+        }
+
+        function loadNextQuestion() {
+            if (gameState.isGameOver) return;
+
+            // Filter question bank based on selected difficulty
+            let filteredPool = QUESTIONS_BANK.filter(q => q.category === gameState.difficulty);
+
+            // Fallback if no questions are found
+            if (filteredPool.length === 0) {
+                filteredPool = QUESTIONS_BANK;
+            }
+
+            // Pick a random question from filtered bank
+            const randomIndex = Math.floor(Math.random() * filteredPool.length);
+            const questionObj = JSON.parse(JSON.stringify(filteredPool[randomIndex]));
+            
+            const originalCorrectOption = questionObj.options[questionObj.correctIndex];
+            
+            // Fisher-Yates shuffle
+            for (let i = questionObj.options.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [questionObj.options[i], questionObj.options[j]] = [questionObj.options[j], questionObj.options[i]];
+            }
+            
+            questionObj.correctIndex = questionObj.options.indexOf(originalCorrectOption);
+            gameState.currentQuestion = questionObj;
+            gameState.currentCorrectLane = questionObj.correctIndex;
+
+            document.getElementById('question-text').innerHTML = questionObj.text;
+            document.getElementById('question-type').innerText = `Kategori: Trigonometri (${gameState.difficulty})`;
+            
+            const difficultyBadge = document.getElementById('hud-difficulty');
+            difficultyBadge.innerText = gameState.difficulty;
+            
+            if (gameState.difficulty === 'MUDAH') {
+                difficultyBadge.className = "text-xs font-game bg-neonGreen/20 border border-neonGreen/50 text-neonGreen px-3 py-1 rounded-full uppercase tracking-wider shadow-[0_0_8px_rgba(57,255,20,0.5)]";
+            } else if (gameState.difficulty === 'SEDANG') {
+                difficultyBadge.className = "text-xs font-game bg-neonCyan/20 border border-neonCyan/50 text-neonCyan px-3 py-1 rounded-full uppercase tracking-wider shadow-[0_0_8px_rgba(0,240,255,0.5)]";
+            } else {
+                difficultyBadge.className = "text-xs font-game bg-neonOrange/20 border border-neonOrange/50 text-neonOrange px-3 py-1 rounded-full uppercase tracking-wider shadow-[0_0_8px_rgba(255,108,0,0.5)]";
+            }
+
+            document.getElementById('option-a-val').innerText = questionObj.options[0];
+            document.getElementById('option-b-val').innerText = questionObj.options[1];
+            document.getElementById('option-c-val').innerText = questionObj.options[2];
+
+            // Always start with the thinking phase
+            startThinkingPhase();
+        }
+
+        // --- PHASE MANAGEMENT LOGIC ---
+
+        function startThinkingPhase() {
+            gameState.phase = 'THINKING';
+            
+            // Setup thinking durations requested: Mudah (20s), Sedang (30s), Sulit (50s)
+            if (gameState.difficulty === 'MUDAH') {
+                gameState.timer = 20;
+            } else if (gameState.difficulty === 'SEDANG') {
+                gameState.timer = 30;
+            } else {
+                gameState.timer = 50;
+            }
+            gameState.maxTimer = gameState.timer;
+
+            // Cleanly clear existing gates to make track empty
+            if (gateMeshGroup) {
+                scene.remove(gateMeshGroup);
+                gateMeshGroup = null;
+            }
+
+            // Adjust DOM elements (Show Thinking, Hide Options)
+            document.getElementById('thinking-placeholder').classList.remove('hidden');
+            const opts = document.getElementById('options-container');
+            opts.classList.add('hidden', 'opacity-0', 'scale-95');
+            opts.classList.remove('opacity-100', 'scale-100');
+
+            // Phase Banner Setup
+            const banner = document.getElementById('phase-banner');
+            banner.innerHTML = `<span class="text-neonYellow"><i class="fa-solid fa-brain animate-pulse"></i> FASE BERPIKIR: SELESAIKAN PERHITUNGAN!</span>`;
+            banner.className = "w-full text-center py-2 px-4 rounded-xl font-game font-semibold text-xs tracking-wider bg-neonYellow/10 border border-neonYellow/30 shadow-[0_0_10px_rgba(255,230,0,0.2)]";
+
+            updateTimerUI();
+
+            // Run Interval Timer
+            if (gameState.timerInterval) clearInterval(gameState.timerInterval);
+            gameState.timerInterval = setInterval(() => {
+                gameState.timer--;
+                updateTimerUI();
+
+                if (gameState.timer <= 0) {
+                    clearInterval(gameState.timerInterval);
+                    startChoosingPhase();
+                }
+            }, 1000);
+        }
+
+        function startChoosingPhase() {
+            gameState.phase = 'CHOOSING';
+            playSound('levelup'); // Alert chime to warn the player gates are coming!
+
+            // Action limits to pick the lanes: Mudah (15s), Sedang (15s), Sulit (25s)
+            if (gameState.difficulty === 'MUDAH' || gameState.difficulty === 'SEDANG') {
+                gameState.timer = 15;
+            } else {
+                gameState.timer = 25;
+            }
+            gameState.maxTimer = gameState.timer;
+
+            // Spawn 3D obstacle gates at the end of the track
+            spawnObstacleGates();
+
+            // Transition UI options into sight
+            document.getElementById('thinking-placeholder').classList.add('hidden');
+            const opts = document.getElementById('options-container');
+            opts.classList.remove('hidden');
+            opts.offsetHeight; // Force reflow
+            opts.classList.remove('opacity-0', 'scale-95');
+            opts.classList.add('opacity-100', 'scale-100');
+
+            // Phase Banner Setup
+            const banner = document.getElementById('phase-banner');
+            banner.innerHTML = `<span class="text-neonCyan animate-pulse"><i class="fa-solid fa-bolt"></i> GERBANG DIBUKA! PILIH JALUR JAWABAN!</span>`;
+            banner.className = "w-full text-center py-2 px-4 rounded-xl font-game font-semibold text-xs tracking-wider bg-neonCyan/10 border border-neonCyan/30 shadow-[0_0_10px_rgba(0,240,255,0.2)]";
+
+            highlightOptionButtons();
+            updateTimerUI();
+
+            // Start countdown to choose
+            if (gameState.timerInterval) clearInterval(gameState.timerInterval);
+            gameState.timerInterval = setInterval(() => {
+                gameState.timer--;
+                updateTimerUI();
+
+                if (gameState.timer <= 0) {
+                    clearInterval(gameState.timerInterval);
+                    handleAnswerOutcome(false, "Kehabisan Waktu");
+                }
+            }, 1000);
+        }
+
+        function updateTimerUI() {
+            const textTimer = document.getElementById('hud-timer');
+            const circleProgress = document.getElementById('timer-circle');
+            
+            textTimer.innerText = gameState.timer;
+            
+            const percent = (gameState.timer / gameState.maxTimer) * 100;
+            const offset = 100 - percent;
+            circleProgress.setAttribute('stroke-dashoffset', offset);
+
+            if (gameState.phase === 'THINKING') {
+                circleProgress.setAttribute('stroke', '#ffe600'); // Steady yellow during thinking
+            } else {
+                if (percent > 50) {
+                    circleProgress.setAttribute('stroke', '#00f0ff'); // Cyan
+                } else if (percent > 25) {
+                    circleProgress.setAttribute('stroke', '#ffe600'); // Yellow
+                } else {
+                    circleProgress.setAttribute('stroke', '#ff073a'); // Red
+                }
+            }
+        }
+
+        function evaluateGateCollision() {
+            clearInterval(gameState.timerInterval);
+
+            const chosenLane = gameState.playerLane;
+            const correctLane = gameState.currentCorrectLane;
+
+            if (chosenLane === correctLane) {
+                handleAnswerOutcome(true, gameState.currentQuestion.options[chosenLane]);
+            } else {
+                handleAnswerOutcome(false, gameState.currentQuestion.options[chosenLane]);
+            }
+        }
+
+        // Handles rewards, score, lives update based on evaluation
+        function handleAnswerOutcome(isCorrect, playerChoice) {
+            gameState.questionsHistory.push({
+                question: gameState.currentQuestion.text,
+                category: gameState.difficulty,
+                options: gameState.currentQuestion.options,
+                userChoice: playerChoice,
+                correctChoice: gameState.currentQuestion.options[gameState.currentCorrectLane],
+                explanation: gameState.currentQuestion.explanation,
+                isCorrect: isCorrect
+            });
+
+            const flash = document.getElementById('flash-effect');
+
+            if (isCorrect) {
+                playSound('correct');
+                
+                let basePoints = 10;
+                if (gameState.difficulty === 'SEDANG') basePoints = 25;
+                if (gameState.difficulty === 'SULIT') basePoints = 50;
+
+                gameState.combo++;
+                if (gameState.combo > gameState.maxCombo) {
+                    gameState.maxCombo = gameState.combo;
+                }
+
+                const scoreAwarded = basePoints * (gameState.combo > 1 ? Math.min(gameState.combo, 4) : 1);
+                gameState.score += scoreAwarded;
+                gameState.coins += Math.floor(scoreAwarded / 5) + 1;
+
+                trackSpeed = Math.min(trackSpeed + 0.015, 0.9);
+
+                document.getElementById('hud-score').innerText = gameState.score;
+                document.getElementById('hud-coins').innerText = gameState.coins;
+
+                if (gameState.combo > 1) {
+                    const comboCont = document.getElementById('combo-container');
+                    comboCont.classList.remove('scale-0');
+                    comboCont.classList.add('scale-100');
+                    document.getElementById('hud-combo').innerText = `x${gameState.combo}`;
+                }
+
+                flash.style.backgroundColor = 'rgba(57, 255, 20, 0.35)';
+                flash.style.opacity = '1';
+                setTimeout(() => { flash.style.opacity = '0'; }, 200);
+
+                if (gameState.combo % 4 === 0) {
+                    playSound('levelup');
+                }
+
+                setTimeout(loadNextQuestion, 400);
+
+            } else {
+                playSound('incorrect');
+                
+                gameState.combo = 0;
+                document.getElementById('combo-container').classList.remove('scale-100');
+                document.getElementById('combo-container').classList.add('scale-0');
+
+                gameState.lives--;
+                updateLivesUI();
+
+                flash.style.backgroundColor = 'rgba(255, 7, 58, 0.45)';
+                flash.style.opacity = '1';
+                
+                const gameArea = document.getElementById('screen-game');
+                gameArea.classList.add('animate-bounce');
+                
+                setTimeout(() => { 
+                    flash.style.opacity = '0'; 
+                    gameArea.classList.remove('animate-bounce');
+                }, 300);
+
+                if (gameState.lives <= 0) {
+                    triggerGameOver();
+                } else {
+                    setTimeout(loadNextQuestion, 400);
+                }
+            }
+        }
+
+        function triggerGameOver() {
+            gameState.isGameOver = true;
+            stopGameLoop();
+            if (gameState.timerInterval) clearInterval(gameState.timerInterval);
+            
+            playSound('gameover');
+
+            let savedCoins = localStorage.getItem('trigos_coins') ? parseInt(localStorage.getItem('trigos_coins')) : 0;
+            localStorage.setItem('trigos_coins', savedCoins + gameState.coins);
+
+            setTimeout(() => {
+                openEvaluasiMenu();
+            }, 800);
+        }
+
+        // --- EVALUATION DASHBOARD LOADERS ---
+
+        function openEvaluasiMenu() {
+            document.getElementById('eval-score').innerText = gameState.score;
+            document.getElementById('eval-coins').innerText = gameState.coins;
+            document.getElementById('eval-combo').innerText = `x${gameState.maxCombo}`;
+
+            const badge = document.getElementById('eval-badge');
+            if (gameState.score >= 200) {
+                badge.innerText = 'Dewa Trigonometri! Sempurna!';
+                badge.className = 'text-xs font-semibold text-neonCyan mt-2';
+            } else if (gameState.score >= 100) {
+                badge.innerText = 'Hebat! Kamu Menguasai Materi!';
+                badge.className = 'text-xs font-semibold text-neonYellow mt-2';
+            } else {
+                badge.innerText = 'Ayo Belajar Lagi Melalui Menu Materi!';
+                badge.className = 'text-xs font-semibold text-neonOrange mt-2';
+            }
+
+            syncHomescreenCoins();
+
+            const listContainer = document.getElementById('eval-questions-container');
+            listContainer.innerHTML = '';
+
+            if (gameState.questionsHistory.length === 0) {
+                listContainer.innerHTML = `
+                    <div class="bg-cardBg/60 border border-white/10 rounded-2xl p-6 text-center text-white/50">
+                        <i class="fa-solid fa-gamepad text-3xl mb-2 text-neonPurple/50"></i>
+                        <p class="text-sm">Belum ada riwayat permainan baru. Silakan selesaikan sesi permainan terlebih dahulu!</p>
+                    </div>
+                `;
+            } else {
+                gameState.questionsHistory.forEach((record, index) => {
+                    const statusColor = record.isCorrect ? 'border-neonGreen/50 shadow-neonGreen/10' : 'border-neonRed/50 shadow-neonRed/10';
+                    const iconColor = record.isCorrect ? 'text-neonGreen' : 'text-neonRed';
+                    const iconSign = record.isCorrect ? 'fa-solid fa-circle-check' : 'fa-solid fa-circle-xmark';
+
+                    listContainer.innerHTML += `
+                        <div class="bg-cardBg/95 border-2 ${statusColor} rounded-2xl p-4 flex flex-col gap-3 transition-all">
+                            <div class="flex justify-between items-center">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-[10px] font-game bg-white/10 text-white/80 px-2 py-0.5 rounded-full">${record.category}</span>
+                                    <span class="text-xs text-white/40">Pertanyaan ${index + 1}</span>
+                                </div>
+                                <span class="flex items-center gap-1.5 text-xs font-game font-semibold ${iconColor}">
+                                    <i class="${iconSign}"></i> ${record.isCorrect ? 'BENAR' : 'SALAH'}
+                                </span>
+                            </div>
+
+                            <p class="text-sm text-white font-medium">${record.question}</p>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs pt-2 border-t border-white/5">
+                                <div class="flex flex-col">
+                                    <span class="text-white/40">Jawaban Kamu:</span>
+                                    <span class="font-semibold text-white">${record.userChoice}</span>
+                                </div>
+                                <div class="flex flex-col">
+                                    <span class="text-white/40">Kunci Jawaban:</span>
+                                    <span class="font-semibold text-neonGreen">${record.correctChoice}</span>
+                                </div>
+                            </div>
+
+                            <div class="bg-darkBg/60 p-3 rounded-xl border border-white/10 mt-1">
+                                <h4 class="text-xs font-bold text-neonYellow flex items-center gap-1 mb-1">
+                                    <i class="fa-solid fa-chalkboard-user"></i> Pembahasan Cepat:
+                                </h4>
+                                <p class="text-xs text-white/70 leading-relaxed font-sans">${record.explanation}</p>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            navigateTo('evaluasi');
+        }
+
+        function syncHomescreenCoins() {
+            let savedCoins = localStorage.getItem('trigos_coins') ? parseInt(localStorage.getItem('trigos_coins')) : 0;
+            document.getElementById('home-coins').innerText = savedCoins;
+        }
+
+        function onWindowResize() {
+            if (!camera || !renderer) return;
+            const container = document.getElementById('threejs-container');
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        window.onload = function() {
+            syncHomescreenCoins();
+        };
+    </script>
+</body>
+</html>
